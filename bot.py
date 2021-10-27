@@ -57,7 +57,7 @@ async def clear(ctx):
     await ctx.send('Чистить нечего')
 
 
-@bot.command(name='69', help='Смишное число')
+@bot.command(name='69', help='Смишное число') # 69 lol 
 async def sixty_nine(ctx):
     await ctx.send('Nice!')
 
