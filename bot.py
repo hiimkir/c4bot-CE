@@ -1,6 +1,7 @@
 import os
 import openpyxl
 import connect4
+from pathlib import Path
 from dotenv import load_dotenv
 from discord.ext import commands
 from discord.utils import get
@@ -8,11 +9,12 @@ from discord import FFmpegPCMAudio
 from yandex_music import Client
 
 load_dotenv()
-bot = commands.Bot(command_prefix='.')
+bot = commands.Bot(command_prefix=':')
 jukebox = Client.from_credentials(os.getenv('LOGIN'), os.getenv('PASS'))
+Path('./YMcache/').mkdir(parents=True, exist_ok=True)
 
 
-@bot.command()
+@bot.command(help='Let the music play')
 async def play(ctx, url: str):
     voice = get(bot.voice_clients, guild=ctx.guild)
     channel = ctx.message.author.voice.channel
@@ -22,33 +24,42 @@ async def play(ctx, url: str):
         voice = get(bot.voice_clients, guild=ctx.guild)
     
     if channel != voice:
-            await voice.move_to(channel)
-            voice = get(bot.voice_clients, guild=ctx.guild)
+        await voice.move_to(channel)
+        voice = get(bot.voice_clients, guild=ctx.guild)
 
     if not voice.is_playing():
         if url == 'likes':
             tracks = jukebox.users_likes_tracks()
         else:
-            tracks = jukebox.tracks(track_ids=[url])
-
-        for track in tracks: 
-            file_path = f'./.YMcache/{track.id}.mp3' 
-# track should be deleted after some time
             try:
-                track.download(file_path)
-            except Exception as e:
-                await ctx.send(f'Error: {e}')
+                int(url.split('/')[-1])
+                int(url.split('/')[-3])
+                track_id = url.split('/')[-1] + ':' + url.split('/')[-3]
+                tracks = jukebox.tracks(track_ids=[track_id])
+            except Exception:
+                await ctx.send('Link seems to be invalid')
+                await channel.disconnect()
+                return
+
+        for track in tracks:
+            file_path = f'./YMcache/{track.id}.mp3'  # track should be deleted after some time
+
+            if not os.path.exists(file_path):
+                try:
+                    track.download(file_path)
+                except Exception as e:
+                    await ctx.send(f'I failed because {e}')
 
             voice.play(FFmpegPCMAudio(file_path))
             voice.is_playing()
-            await ctx.send(f'Bot is playing {track.artists[0].name} - {track.title}')
+            await ctx.send(f'{track.artists[0].name} - {track.title} directly in your voice chat')
 
     else:
-        await ctx.send('Bot is already playing')
+        await ctx.send('Kick the bot, then start new songs (yeah, I\'m an awful coder)')
         return
 
 
-@bot.command()
+@bot.command(help='There is no room for this bot anymore')
 async def gtfo(ctx):
     voice = get(bot.voice_clients, guild=ctx.guild)
 
@@ -58,12 +69,12 @@ async def gtfo(ctx):
         await voice.disconnect()
 
 
-@bot.command(name='69', help='Смишное число')
+@bot.command(name='69', help='Funny number')
 async def sixty_nine(ctx):
     await ctx.send('Nice!')
 
 
-@bot.command(name='c4', help='Игра для двоих')
+@bot.command(name='c4', help='A game for two (enter number 1-7, ping to add opponent)')
 async def connect_four(ctx, cont: str):
     if not connect4.game_started(ctx.channel.id):
         connect4.new_game(ctx.channel.id)
@@ -74,7 +85,7 @@ async def connect_four(ctx, cont: str):
     p2 = sheet['B2'].value
     message_author = "'" + str(ctx.author.id)
     if message_author == p2:
-        await ctx.send('Следующий!')
+        await ctx.send('Next!')
         return
     if p1 == "'0":
         if len(cont) > 21 and cont.split()[0][1] == '@':
@@ -87,12 +98,12 @@ async def connect_four(ctx, cont: str):
             sheet.cell(column=1, row=2, value=p1)
             sheet.cell(column=2, row=2, value=p2)
             r.save('save.xlsx')
-            await ctx.send('Игра началась')
+            await ctx.send('Ready player one')
             return
         sheet.cell(column=1, row=2, value=message_author)
         r.save('save.xlsx')
     elif message_author != p1:
-        await ctx.send('Ты вообще кто?')
+        await ctx.send('Wait a minute, who are you?')
         return
 
     player_input = int(cont.split()[0]) - 1
@@ -100,27 +111,27 @@ async def connect_four(ctx, cont: str):
         await ctx.send('Nice!')
         return
     if player_input > 6 or player_input < 0:
-        await ctx.end('Попробуй другое число 1-7')
+        await ctx.end('Try another number 1-7')
         return
     response = connect4.turn(player_input, ctx.channel.id)
     if not response:
-        await ctx.send('Столбец уже заполнен')
+        await ctx.send('Column is full')
         return
     await ctx.send(response)
 
     connect4.end_turn(ctx.channel.id)
 
 
-@bot.command(name='clear', help='Очистить стол')
+@bot.command(help='Clear the table')
 async def clear(ctx):
     r = openpyxl.load_workbook('save.xlsx')
     for i in r.worksheets:
         if str(i)[12:-2] == str(ctx.channel.id):
             r.remove(i)
             r.save('save.xlsx')
-            await ctx.send('Успешно почищено')
+            await ctx.send('Territory purged')
             return
-    await ctx.send('Чистить нечего')
+    await ctx.send('Wow, so empty')
 
 
 @bot.event
