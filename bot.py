@@ -38,7 +38,7 @@ async def play(ctx, url: str):
                 tracks = jukebox.tracks(track_ids=[track_id])
             except Exception:
                 await ctx.send('Link seems to be invalid')
-                await channel.disconnect()
+                await voice.disconnect()
                 return
 
         for track in tracks:
