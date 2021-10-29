@@ -55,7 +55,7 @@ async def gtfo(ctx):
     if voice and voice.is_connected():
         if voice.is_playing():
             voice.stop()
-        voice.disconnect()
+        await voice.disconnect()
 
 
 @bot.command(name='69', help='Смишное число')
