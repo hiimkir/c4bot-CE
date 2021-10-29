@@ -8,8 +8,8 @@ from discord import FFmpegPCMAudio
 from yandex_music import Client
 
 load_dotenv()
-bot = commands.Bot(command_prefix=':')
-jukebox = Client.from_credentials(os.getenv('USER'), os.getenv('PASS'))
+bot = commands.Bot(command_prefix='.')
+jukebox = Client.from_credentials(os.getenv('LOGIN'), os.getenv('PASS'))
 
 
 @bot.command()
@@ -17,35 +17,35 @@ async def play(ctx, url: str):
     voice = get(bot.voice_clients, guild=ctx.guild)
     channel = ctx.message.author.voice.channel
 
-    if voice and voice.is_connected():
-        if channel != voice:
+    if not voice: 
+        await channel.connect() 
+        voice = get(bot.voice_clients, guild=ctx.guild)
+    
+    if channel != voice:
             await voice.move_to(channel)
+            voice = get(bot.voice_clients, guild=ctx.guild)
 
-        if not voice.is_playing():
-            if url == 'likes':
-                tracks = jukebox.users_likes_tracks()
-            else:
-                tracks = jukebox.tracks(track_ids=[url])
-
-            for track in tracks:
-                try:
-                    file_path = f'./.YMcache/{track.id}.mp3'
-
-                    try:
-                        track.download(file_path)
-                    except Exception as e:
-                        await ctx.send('Error:', e)
-
-                    voice.play(FFmpegPCMAudio(file_path))
-                    voice.is_playing()
-                    await ctx.send(f'Bot is playing {track.artists[0].name} - {track.title}')
-                except Exception as e:
-                    await ctx.send('Error:', e)
+    if not voice.is_playing():
+        if url == 'likes':
+            tracks = jukebox.users_likes_tracks()
         else:
-            await ctx.send('Bot is already playing')
-            return
+            tracks = jukebox.tracks(track_ids=[url])
+
+        for track in tracks: 
+            file_path = f'./.YMcache/{track.id}.mp3' 
+# track should be deleted after some time
+            try:
+                track.download(file_path)
+            except Exception as e:
+                await ctx.send(f'Error: {e}')
+
+            voice.play(FFmpegPCMAudio(file_path))
+            voice.is_playing()
+            await ctx.send(f'Bot is playing {track.artists[0].name} - {track.title}')
+
     else:
-        await channel.connect()
+        await ctx.send('Bot is already playing')
+        return
 
 
 @bot.command()
