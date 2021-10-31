@@ -29,19 +29,31 @@ async def play(ctx, url: str):
 
     if not voice.is_playing():
         if url == 'likes':
-            tracks = jukebox.users_likes_tracks()
+            setlist = jukebox.users_likes_tracks()
+            tracks = setlist.fetchTracks()
+
         else:
             try:
                 int(url.split('/')[-1])
-                int(url.split('/')[-3])
-                track_id = url.split('/')[-1] + ':' + url.split('/')[-3]
-                tracks = jukebox.tracks(track_ids=[track_id])
+                parsed_id = url.split('/')[-1]
+                try:
+                    int(url.split('/')[-3])
+                    parsed_id += ':' + url.split('/')[-3]
+
+                    tracks = jukebox.tracks(track_ids=[parsed_id])
+                except Exception:
+                    setlist = jukebox.albums_with_tracks(parsed_id)
+                    tracks = []
+                    for volume in setlist.volumes:
+                        tracks += volume
+
             except Exception:
                 await ctx.send('Link seems to be invalid')
-                await voice.disconnect()
+                await channel.disconnect()
                 return
 
         for track in tracks:
+            await ctx.send(tracks)
             file_path = f'./YMcache/{track.id}.mp3'  # track should be deleted after some time
 
             if not os.path.exists(file_path):
