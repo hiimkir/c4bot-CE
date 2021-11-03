@@ -1,6 +1,7 @@
 import os
 import openpyxl
 import connect4
+import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 from discord.ext import commands
@@ -52,22 +53,34 @@ async def play(ctx, url: str):
                 await channel.disconnect()
                 return
 
+        await ctx.send('Today we will be talking about:')
+        queue_len = len(tracks)
+        if queue_len > 5:
+            queue_len = 5
+        for i in range(queue_len):
+            await ctx.send(f'{i}. {tracks[i].artists[0].name} - {tracks[i].title}')
+
         for track in tracks:
-            await ctx.send(tracks)
-            file_path = f'./YMcache/{track.id}.mp3'  # track should be deleted after some time
+            file_path = f'./YMcache/{track.id}.aac'  # track should be deleted after some time
+            track_time = track.duration_ms // 1000
 
             if not os.path.exists(file_path):
                 try:
-                    track.download(file_path)
-                except Exception as e:
-                    await ctx.send(f'I failed because {e}')
+                    track.download(file_path, 'aac', 128)
+                except Exception:
+                    try:
+                        track.download(file_path)
+                    except Exception as e:
+                        await ctx.send(f'I failed because {e}')
+                        return
 
             voice.play(FFmpegPCMAudio(file_path))
             voice.is_playing()
             await ctx.send(f'{track.artists[0].name} - {track.title} directly in your voice chat')
+            await asyncio.sleep(track_time + 1)
 
     else:
-        await ctx.send('Kick the bot, then start new songs (yeah, I\'m an awful coder)')
+        await ctx.send('Queue coming soon! (for now just kick the bot)')
         return
 
 
