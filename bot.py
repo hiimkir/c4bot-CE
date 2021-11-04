@@ -4,6 +4,7 @@ import connect4
 import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
+import discord
 from discord.ext import commands
 from discord.utils import get
 from discord import FFmpegPCMAudio
@@ -20,10 +21,10 @@ async def play(ctx, url: str):
     voice = get(bot.voice_clients, guild=ctx.guild)
     channel = ctx.message.author.voice.channel
 
-    if not voice: 
-        await channel.connect() 
+    if not voice:
+        await channel.connect()
         voice = get(bot.voice_clients, guild=ctx.guild)
-    
+
     if channel != voice:
         await voice.move_to(channel)
         voice = get(bot.voice_clients, guild=ctx.guild)
@@ -53,16 +54,17 @@ async def play(ctx, url: str):
                 await channel.disconnect()
                 return
 
-        await ctx.send('Today we will be talking about:')
-        queue_len = len(tracks)
-        if queue_len > 5:
-            queue_len = 5
-        for i in range(queue_len):
-            await ctx.send(f'{i}. {tracks[i].artists[0].name} - {tracks[i].title}')
+        #         await ctx.send('Today we will be talking about:')
+        #         queue_len = len(tracks)
+        #         if queue_len > 5:
+        #             queue_len = 5
+        #         for i in range(queue_len):
+        #             await ctx.send(f'{i}. {tracks[i].artists[0].name} - {tracks[i].title}')
 
         for track in tracks:
             file_path = f'./YMcache/{track.id}.aac'  # track should be deleted after some time
             track_time = track.duration_ms // 1000
+            time_second = f'0{track_time % 60}' if track_time % 60 < 10 else str(track_time % 60)
 
             if not os.path.exists(file_path):
                 try:
@@ -76,11 +78,20 @@ async def play(ctx, url: str):
 
             voice.play(FFmpegPCMAudio(file_path))
             voice.is_playing()
-            await ctx.send(f'{track.artists[0].name} - {track.title} directly in your voice chat')
+
+            output_msg = discord.Embed(title=f'{track.artists[0].name} - {track.title}', url=url,
+                                       description='banging in your ears rn', color=0xFFDB4E)
+            output_msg.set_author(name=f'added by {ctx.author.display_name}', icon_url=ctx.author.avatar_url)
+            output_msg.set_thumbnail(url=f'https://{track.cover_uri[:-2]}1000x1000')
+            output_msg.set_footer(text=f'{track_time // 60}:{time_second}',
+                                  icon_url='https://img.icons8.com/fluency-systems-filled/48/ffffff/time.png')
+            await ctx.send(embed=output_msg, delete_after=track_time)
             await asyncio.sleep(track_time + 1)
 
     else:
-        await ctx.send('Queue coming soon! (for now just kick the bot)')
+        output_msg = discord.Embed(title=f'Queue coming soon!', url='https://github.com/hiimkir/c4bot-CE',
+                                   description='just kick the bot', color=0xF54542)
+        await ctx.send(embed=output_msg)
         return
 
 
@@ -105,7 +116,7 @@ async def connect_four(ctx, cont: str):
         connect4.new_game(ctx.channel.id)
 
     r = openpyxl.load_workbook('save.xlsx')
-    sheet = r[str(ctx.channel.id)]           # unload xlsx from memory
+    sheet = r[str(ctx.channel.id)]  # unload xlsx from memory
     p1 = sheet['A2'].value
     p2 = sheet['B2'].value
     message_author = "'" + str(ctx.author.id)
