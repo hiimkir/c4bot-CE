@@ -17,7 +17,7 @@ Path('./YMcache/').mkdir(parents=True, exist_ok=True)
 
 
 @bot.command(help='Let the music play')
-async def play(ctx, url: str):
+async def play(ctx, *args):
     voice = get(bot.voice_clients, guild=ctx.guild)
     channel = ctx.message.author.voice.channel
 
@@ -30,17 +30,29 @@ async def play(ctx, url: str):
         voice = get(bot.voice_clients, guild=ctx.guild)
 
     if not voice.is_playing():
-        if url == 'likes':
-            setlist = jukebox.users_likes_tracks()
-            tracks = setlist.fetchTracks()
+        arg = None
+        if args[0][0] == '-':
+            arg = args[0][0]
+            args -= arg
+        text = ' '.join(args)
 
-        else:
-            try:
-                int(url.split('/')[-1])
-                parsed_id = url.split('/')[-1]
+        if arg is None:
+            arg = '-all'
+            text = text.split('/')
+            if len(text) > 1:
+                for word in text:
+                    if word == 'music.yandex.ru':
+                        arg = '-link'
+                        break
+            text = '/'.join(text)
+
+        try:
+            if arg == '-link':
+                int(text.split('/')[-1])
+                parsed_id = text.split('/')[-1]
                 try:
-                    int(url.split('/')[-3])
-                    parsed_id += ':' + url.split('/')[-3]
+                    int(text.split('/')[-3])
+                    parsed_id += ':' + text.split('/')[-3]
 
                     tracks = jukebox.tracks(track_ids=[parsed_id])
                 except Exception:
@@ -49,19 +61,33 @@ async def play(ctx, url: str):
                     for volume in setlist.volumes:
                         tracks += volume
 
-            except Exception:
-                await ctx.send('Link seems to be invalid')
-                await channel.disconnect()
-                return
+            elif arg == '-likes':
+                tracks = jukebox.users_likes_tracks()
 
-        #         await ctx.send('Today we will be talking about:')
-        #         queue_len = len(tracks)
-        #         if queue_len > 5:
-        #             queue_len = 5
-        #         for i in range(queue_len):
-        #             await ctx.send(f'{i}. {tracks[i].artists[0].name} - {tracks[i].title}')
+            else:
+                query = jukebox.search(text=text, type=arg[1::]).best
+                setlist = query.result
+                arg = query.type
+                tracks = []
+
+                if arg == 'Track':
+                    tracks = [setlist]
+                elif arg == 'Album':
+                    for volume in setlist.volumes:
+                        tracks += volume
+                elif arg == 'Artist':
+                    tracks = setlist.popular_tracks
+                elif arg == 'Playlist':
+                    tracks = setlist.tracks
+
+        except Exception:
+            await ctx.send("I don't get it")
+            await voice.disconnect()
+            return
 
         for track in tracks:
+            if type(track) == 'TrackShort':
+                track = track.fetch_track()
             file_path = f'./YMcache/{track.id}.aac'  # track should be deleted after some time
             track_time = track.duration_ms // 1000
             time_second = f'0{track_time % 60}' if track_time % 60 < 10 else str(track_time % 60)
@@ -79,7 +105,7 @@ async def play(ctx, url: str):
             voice.play(FFmpegPCMAudio(file_path))
             voice.is_playing()
 
-            output_msg = discord.Embed(title=f'{track.artists[0].name} - {track.title}', url=url,
+            output_msg = discord.Embed(title=f'{track.artists[0].name} - {track.title}', url=text,
                                        description='banging in your ears rn', color=0xFFDB4E)
             output_msg.set_author(name=f'added by {ctx.author.display_name}', icon_url=ctx.author.avatar_url)
             output_msg.set_thumbnail(url=f'https://{track.cover_uri[:-2]}1000x1000')
@@ -91,7 +117,7 @@ async def play(ctx, url: str):
     else:
         output_msg = discord.Embed(title=f'Queue coming soon!', url='https://github.com/hiimkir/c4bot-CE',
                                    description='just kick the bot', color=0xF54542)
-        await ctx.send(embed=output_msg)
+        await ctx.send(embed=output_msg, delete_after=180)
         return
 
 
@@ -111,7 +137,7 @@ async def sixty_nine(ctx):
 
 
 @bot.command(name='c4', help='A game for two (enter number 1-7, ping to add opponent)')
-async def connect_four(ctx, cont: str):
+async def connect_four(ctx, cont: str):         # use *args
     if not connect4.game_started(ctx.channel.id):
         connect4.new_game(ctx.channel.id)
 
@@ -120,9 +146,11 @@ async def connect_four(ctx, cont: str):
     p1 = sheet['A2'].value
     p2 = sheet['B2'].value
     message_author = "'" + str(ctx.author.id)
+
     if message_author == p2:
         await ctx.send('Next!')
         return
+
     if p1 == "'0":
         if len(cont) > 21 and cont.split()[0][1] == '@':
             if len(cont) > 26 and cont.split()[1] == '-pass':
@@ -138,6 +166,7 @@ async def connect_four(ctx, cont: str):
             return
         sheet.cell(column=1, row=2, value=message_author)
         r.save('save.xlsx')
+
     elif message_author != p1:
         await ctx.send('Wait a minute, who are you?')
         return
@@ -149,7 +178,9 @@ async def connect_four(ctx, cont: str):
     if player_input > 6 or player_input < 0:
         await ctx.end('Try another number 1-7')
         return
+
     response = connect4.turn(player_input, ctx.channel.id)
+
     if not response:
         await ctx.send('Column is full')
         return
@@ -161,6 +192,7 @@ async def connect_four(ctx, cont: str):
 @bot.command(help='Clear the table')
 async def clear(ctx):
     r = openpyxl.load_workbook('save.xlsx')
+
     for i in r.worksheets:
         if str(i)[12:-2] == str(ctx.channel.id):
             r.remove(i)
