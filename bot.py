@@ -88,7 +88,9 @@ async def play(ctx, *args):
         for track in tracks:
             if type(track) == 'TrackShort':
                 track = track.fetch_track()
-            file_path = f'./YMcache/{track.id}.aac'  # track should be deleted after some time
+            file_path = f'./YMcache/{track.id}.aac'  # track should be deleted after some time (is extension needed?)
+            channel_bitrate = get(bot.voice_clients, guild=ctx.guild).bitrate
+            availiable_bitrates = sort(track.download_info.bitrate_in_kbps) # is it list? how did i get dl options while testing???
             track_time = track.duration_ms // 1000
             time_second = f'0{track_time % 60}' if track_time % 60 < 10 else str(track_time % 60)
 
@@ -104,9 +106,12 @@ async def play(ctx, *args):
 
             voice.play(FFmpegPCMAudio(file_path))
             voice.is_playing()
-
-            output_msg = discord.Embed(title=f'{track.artists[0].name} - {track.title}', url=text,
-                                       description='banging in your ears rn', color=0xFFDB4E)
+            
+            body = ''
+            if len(track.artists_name()) > 1:
+                body = 'feat. ' + ' '.join(track.arists_name()[1::])
+            output_msg = discord.Embed(title=f'{track.artists_name()[0]} - {track.title}', url=text,
+                                       description=body, color=0xFFDB4E)
             output_msg.set_author(name=f'added by {ctx.author.display_name}', icon_url=ctx.author.avatar_url)
             output_msg.set_thumbnail(url=f'https://{track.cover_uri[:-2]}1000x1000')
             output_msg.set_footer(text=f'{track_time // 60}:{time_second}',
