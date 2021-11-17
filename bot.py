@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands
 from discord.utils import get
 from discord import FFmpegPCMAudio
-from yandex_music import Client
+from yandex_music import Client, TrackShort
 
 load_dotenv()
 bot = commands.Bot(command_prefix=':')
@@ -19,7 +19,12 @@ Path('./YMcache/').mkdir(parents=True, exist_ok=True)
 @bot.command(help='Let the music play')
 async def play(ctx, *args):
     voice = get(bot.voice_clients, guild=ctx.guild)
-    channel = ctx.message.author.voice.channel
+    channel = ctx.message.author.voice
+
+    if not channel:
+        await ctx.send('Connect to voice dumbass')
+        return
+    channel = channel.channel
 
     if not voice:
         await channel.connect()
@@ -29,68 +34,94 @@ async def play(ctx, *args):
         await voice.move_to(channel)
         voice = get(bot.voice_clients, guild=ctx.guild)
 
-    if not voice.is_playing():
-        arg = None
-        if args[0][0] == '-':
-            arg = args[0][0]
-            args -= arg
-        text = ' '.join(args)
+    arg = None
+    forcepush = False
+    skip = 0
+    for i in args:
+        if i[0] == '-':
+            skip += 1
+            if i == '-f':
+                forcepush = True
+            else:
+                arg = i[1::]
+        elif skip >= 0:
+            break
 
-        if arg is None:
-            arg = '-all'
+    if voice.is_playing() and forcepush:
+        voice.stop()
+
+    if not voice.is_playing():
+        text = ' '.join(args[skip::])
+
+        if not arg:
+            arg = 'all'
             text = text.split('/')
             if len(text) > 1:
                 for word in text:
                     if word == 'music.yandex.ru':
-                        arg = '-link'
+                        arg = 'link'
                         break
             text = '/'.join(text)
 
         try:
-            if arg == '-link':
+            if arg == 'link':
                 int(text.split('/')[-1])
                 parsed_id = text.split('/')[-1]
                 try:
                     int(text.split('/')[-3])
                     parsed_id += ':' + text.split('/')[-3]
-
+    
                     tracks = jukebox.tracks(track_ids=[parsed_id])
                 except Exception:
                     setlist = jukebox.albums_with_tracks(parsed_id)
                     tracks = []
                     for volume in setlist.volumes:
                         tracks += volume
-
-            elif arg == '-likes':
+    
+            elif arg == 'loves':
                 tracks = jukebox.users_likes_tracks()
-
+    
+            elif arg == 'likes':
+                tracks = ['609676:14599232']
+    
             else:
-                query = jukebox.search(text=text, type=arg[1::]).best
-                setlist = query.result
-                arg = query.type
-                tracks = []
-
-                if arg == 'Track':
+                query = jukebox.search(text=text, type_=arg)
+                if arg == 'track':
+                    setlist = query.tracks.results[0]
+                elif arg == 'album':
+                    setlist = query.albums.results[0]
+                elif arg == 'artist':
+                    setlist = query.artists.results[0]
+                elif arg == 'playlist':
+                    setlist = query.playlists.results[0]
+                else:
+                    setlist = query.best.result
+                    arg = query.best.type
+    
+                if arg == 'track':
                     tracks = [setlist]
-                elif arg == 'Album':
+                elif arg == 'album':
+                    setlist = setlist.with_tracks()
+                    tracks = []
                     for volume in setlist.volumes:
                         tracks += volume
-                elif arg == 'Artist':
-                    tracks = setlist.popular_tracks
-                elif arg == 'Playlist':
-                    tracks = setlist.tracks
+                elif arg == 'artist':
+                    tracks = setlist.get_tracks()
+                elif arg == 'playlist':
+                    tracks = setlist.fetch_tracks()
+                else:
+                    await ctx.send('Nothing found')
+                    return
 
-        except Exception:
-            await ctx.send("I don't get it")
+        except Exception as woopsie:
+            await ctx.send(f"I don't get it ||{woopsie}||")
             await voice.disconnect()
             return
 
         for track in tracks:
-            if type(track) == 'TrackShort':
+            if type(track) == TrackShort:
                 track = track.fetch_track()
-            file_path = f'./YMcache/{track.id}.aac'  # track should be deleted after some time (is extension needed?)
-            channel_bitrate = get(bot.voice_clients, guild=ctx.guild).bitrate
-            availiable_bitrates = sort(track.download_info.bitrate_in_kbps) # is it list? how did i get dl options while testing???
+            file_path = f'./YMcache/{track.id}.aac'  # track should be deleted after some time
             track_time = track.duration_ms // 1000
             time_second = f'0{track_time % 60}' if track_time % 60 < 10 else str(track_time % 60)
 
@@ -100,18 +131,23 @@ async def play(ctx, *args):
                 except Exception:
                     try:
                         track.download(file_path)
-                    except Exception as e:
-                        await ctx.send(f'I failed because {e}')
+                    except Exception as woopsie:
+                        await ctx.send(f'I failed because {woopsie}')
                         return
 
             voice.play(FFmpegPCMAudio(file_path))
             voice.is_playing()
-            
+
             body = ''
             if len(track.artists_name()) > 1:
                 body = 'feat. ' + ' '.join(track.arists_name()[1::])
-            output_msg = discord.Embed(title=f'{track.artists_name()[0]} - {track.title}', url=text,
-                                       description=body, color=0xFFDB4E)
+            elif track.albums[0].short_description:
+                body = track.albums[0].short_description
+            elif track.albums[0].description:
+                body = track.albums[0].description.split('.')[0] + '.'
+            output_msg = discord.Embed(title=f'{track.artists[0].name} - {track.title}', color=0xFFDB4E,
+                                       url=f'https://music.yandex.ru/album/{track.albums[0].id}/track/{track.id}',
+                                       description=body)
             output_msg.set_author(name=f'added by {ctx.author.display_name}', icon_url=ctx.author.avatar_url)
             output_msg.set_thumbnail(url=f'https://{track.cover_uri[:-2]}1000x1000')
             output_msg.set_footer(text=f'{track_time // 60}:{time_second}',
@@ -120,10 +156,10 @@ async def play(ctx, *args):
             await asyncio.sleep(track_time + 1)
 
     else:
-        output_msg = discord.Embed(title=f'Queue coming soon!', url='https://github.com/hiimkir/c4bot-CE',
-                                   description='just kick the bot', color=0xF54542)
-        await ctx.send(embed=output_msg, delete_after=180)
-        return
+            output_msg = discord.Embed(title=f'Queue coming soon!', url='https://github.com/hiimkir/c4bot-CE',
+                                       description='just kick the bot', color=0xF54542)
+            await ctx.send(embed=output_msg, delete_after=180)
+            return
 
 
 @bot.command(help='There is no room for this bot anymore')
