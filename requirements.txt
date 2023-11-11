@@ -1,0 +1,9 @@
+os
+openpyxl
+connect4
+asyncio
+pathlib
+discord
+discord.ext
+discord.utils
+yandex_music
