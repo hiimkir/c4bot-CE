@@ -1,7 +1,6 @@
 import os
 import datetime as dt
 import asyncio
-from dotenv import load_dotenv
 import discord as cord
 from discord import app_commands
 from discord import FFmpegPCMAudio
@@ -9,7 +8,6 @@ from discord.utils import get
 import yt_dlp as yt
 
 
-load_dotenv()
 worker = cord.Client(intents = cord.Intents.default())
 coms = cord.app_commands.CommandTree(worker)
 
