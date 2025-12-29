@@ -14,10 +14,10 @@ coms = cord.app_commands.CommandTree(worker)
 
 @coms.command(description='Let the music in tonight')
 @app_commands.describe(url='Give life back to music')
-async def play(action, url: str):
+async def play(action: cord.Interaction, url: str):
     if action.user.voice is None:
         await action.response.send_message(
-            'connect to voice dumbass', ephmeral=True
+            'connect to voice dumbass', ephemeral=True
         )
         return
 
@@ -28,15 +28,18 @@ async def play(action, url: str):
             player.stop()
             await player.disconnect()
         else:
-            await action.response.send_message('stfu im busy', ephmeral=True)
+            await action.response.send_message('stfu im busy', ephemeral=True)
         return
+    await action.response.defer(thinking=True) # defers for 15 minutes
 
     YT_OPTS = {'format': 'bestaudio', 'noplaylist': 'True'}
     downloader = yt.YoutubeDL(YT_OPTS)
     try:
         info = downloader.extract_info(url, download=False)
-    except Exception:
-        action.response.send_message('sosamba', ephemeral=True)
+    except:
+        # should be ephemeral but cannot because defer() is not
+        msg = await action.followup.send('enter a valid url')
+        await msg.delete(delay=float(info['duration']))
         return
     
     if player is None:
@@ -59,9 +62,8 @@ async def play(action, url: str):
         icon_url=action.user.avatar.url
     )
     msg.set_image(url=info['thumbnail'])
-    await action.response.send_message(
-        delete_after=float(info['duration']), embed=msg, ephemeral=False
-    )
+    msg = await action.followup.send(embed=msg)
+    await msg.delete(delay=float(info['duration']))
 
 
 @worker.event
