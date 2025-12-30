@@ -1,3 +1,21 @@
+'''
+TODO LIST
+[ ] Add embed back
+[ ] Fix music not playing after stopping (bot doen't reconnect) ??? Some inconsistent issue
+[ ] Add queue list maybe?
+[ ] Leave after all songs played
+[ ] Leave after AFK
+[ ] Add priority play command
+[ ] Add docstrings somewhere in the future
+'''
+
+
+# XXX Remove after testing
+from dotenv import load_dotenv
+load_dotenv()
+# XXX Remove after testing
+
+
 import os
 import logging
 import asyncio
@@ -9,19 +27,6 @@ from discord import FFmpegPCMAudio
 
 import yt_dlp as yt
 
-''' TODO LIST
-[ ] Add embed back
-[ ] Fix music not playing after stopping (bot doen't reconnect) ??? Some inconsistent issue
-[ ] Add queue list maybe?
-[ ] Leave after all songs played
-[ ] Leave after AFK
-[ ] Add priority play command
-'''
-
-# XXX Remove after testing
-from dotenv import load_dotenv
-load_dotenv()
-# XXX Remove after testing
 
 # ---- Setup ----
 
@@ -56,7 +61,7 @@ class Track:
         self.info = info
         self.channel = channel
         self.requester = requester
-
+    
     def create_source(self):
         return FFmpegPCMAudio(self.info["url"], **FFMPEG_OPTS)
 
